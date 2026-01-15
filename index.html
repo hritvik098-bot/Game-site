@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Haunted One + Namaz Reminder</title>
+  <style>
+    html, body { margin:0; padding:0; overflow:hidden; background:#000; font-family: system-ui; color:#fff; }
+    #hud{
+      position:fixed; top:10px; left:10px; z-index:10;
+      background:rgba(0,0,0,.55); padding:10px 12px; border-radius:12px;
+      font-size:13px; max-width:95vw;
+    }
+    #hud b{font-size:14px}
+    #crosshair{
+      position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:8px; height:8px; border:2px solid rgba(255,255,255,.8);
+      border-radius:999px; z-index:10;
+    }
+    #msg{
+      position:fixed; inset:0; display:none; z-index:20;
+      background:rgba(0,0,0,.65); align-items:center; justify-content:center;
+      padding:12px;
+    }
+    #msgInner{
+      width:min(520px, 92vw); border-radius:18px;
+      background:rgba(10,10,10,.9);
+      border:1px solid rgba(255,255,255,.12);
+      padding:18px 16px;
+      text-align:center;
+    }
+    .btn{
+      display:inline-block; margin-top:10px;
+      padding:10px 14px; border-radius:12px;
+      background:#fff; color:#000; cursor:pointer; user-select:none;
+      font-weight:900;
+    }
+
+    /* Namaz box */
+    #prayerBox{
+      position:fixed; inset:0; display:none; z-index:999;
+      background:rgba(0,0,0,.75);
+      align-items:center; justify-content:center;
+      padding:12px;
+    }
+    #prayerInner{
+      width:min(540px, 92vw);
+      background:rgba(10,10,10,.92);
+      border:1px solid rgba(255,255,255,.14);
+      padding:18px 16px; border-radius:18px;
+      text-align:center;
+    }
+    #prayerSettings{
+      margin-top:12px; text-align:left; font-size:14px;
+      background:rgba(255,255,255,.06);
+      border-radius:14px; padding:12px;
+    }
+    #prayerSettings input{
+      width:120px; padding:8px 10px; border-radius:10px;
+      border:1px solid rgba(255,255,255,.18);
+      background:#000; color:#fff;
+    }
+    .row{display:flex; justify-content:space-between; gap:10px; align-items:center; margin:8px 0;}
+    .small{opacity:.8; font-size:12px}
+  </style>
+</head>
+
+<body>
+  <div id="hud">
+    <b>The Haunted One (3D Horror)</b><br/>
+    Click to start • Move: <b>WASD</b> • Run: <b>Shift</b> • Flashlight: <b>F</b><br/>
+    Namaz settings: <b>N</b> • Goal: Reach <b>Exit Door</b> 🚪
+  </div>
+  <div id="crosshair"></div>
+
+  <!-- Game Result -->
+  <div id="msg">
+    <div id="msgInner">
+      <div id="msgText" style="font-size:18px"></div>
+      <div class="btn" onclick="location.reload()">Play Again</div>
+    </div>
+  </div>
+
+  <!-- Namaz Reminder -->
+  <div id="prayerBox">
+    <div id="prayerInner">
+      <h2 id="prTitle" style="margin:0 0 8px">🕌 Namaz Time</h2>
+      <p id="prText" style="margin:0 0 10px;opacity:.9;line-height:1.5">
+        Namaz ka waqt ho gaya hai. Game pause kar diya gaya hai.
+      </p>
+      <div class="btn" id="prOk">ठीक है</div>
+
+      <div id="prayerSettings">
+        <b>Namaz Times (Manual Set)</b>
+        <div class="small">Format HH:MM (24 hour). Example: 05:20</div>
+
+        <div class="row"><span>Fajr</span> <input id="tFajr" type="time" value="05:30"></div>
+        <div class="row"><span>Zuhr</span> <input id="tZuhr" type="time" value="13:15"></div>
+        <div class="row"><span>Asr</span>  <input id="tAsr"  type="time" value="16:45"></div>
+        <div class="row"><span>Maghrib</span><input id="tMag"  type="time" value="18:05"></div>
+        <div class="row"><span>Isha</span> <input id="tIsha" type="time" value="19:30"></div>
+
+        <div class="btn" id="saveTimes">Save Times</div>
+        <div class="small">Press <b>N</b> to open this anytime.</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+    import { PointerLockControls } from "https://unpkg.com/three@0.160.0/examples/jsm/controls/PointerLockControls.js";
+
+    // ---------------- Scene ----------------
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x000000, 2, 22);
+
+    const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100);
+    camera.position.set(0, 1.6, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    scene.add(new THREE.AmbientLight(0x111111));
+
+    // Flashlight
+    const flashlight = new THREE.SpotLight(0xffffff, 2.2, 16, Math.PI/7, 0.25, 1.6);
+    flashlight.position.set(0, 1.6, 0);
+    flashlight.target.position.set(0, 1.6, -1);
+    camera.add(flashlight);
+    camera.add(flashlight.target);
+    scene.add(camera);
+
+    let flashlightOn = true;
+
+    // Controls
+    const controls = new PointerLockControls(camera, document.body);
+    document.body.addEventListener("click", () => controls.lock());
+
+    // Floor
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(30, 30),
+      new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 1 })
+    );
+    floor.rotation.x = -Math.PI/2;
+    scene.add(floor);
+
+    // Walls helper
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0b, roughness: 1 });
+    function wall(w, h, d, x, y, z){
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+      m.position.set(x,y,z);
+      scene.add(m);
+      return m;
+    }
+
+    // Outer room
+    wall(30, 6, 1, 0, 3, -15);
+    wall(30, 6, 1, 0, 3,  15);
+    wall(1,  6, 30, -15, 3, 0);
+    wall(1,  6, 30,  15, 3, 0);
+
+    // Obstacles
+    const obstacles = [];
+    obstacles.push(wall(10, 4, 1, 0, 2, 5));
+    obstacles.push(wall(1, 4, 10, -6, 2, -2));
+    obstacles.push(wall(12, 4, 1, 4, 2, -6));
+    obstacles.push(wall(1, 4, 10, 7, 2, 0));
+
+    // Exit door
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 3.4, 0.4),
+      new THREE.MeshStandardMaterial({ color: 0x2a9d8f, roughness: 0.6 })
+    );
+    door.position.set(14, 1.7, -10);
+    scene.add(door);
+
+    // Enemy
+    const enemy = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1.8, 0.6),
+      new THREE.MeshStandardMaterial({ color: 0x3a0a0a, roughness: 1 })
+    );
+    body.position.y = 0.9;
+    const head = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.7, 0.7),
+      new THREE.MeshStandardMaterial({ color: 0x552222, roughness: 1 })
+    );
+    head.position.y = 2.0;
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    const eye1 = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 16), eyeMat);
+    const eye2 = eye1.clone();
+    eye1.position.set(-0.18, 2.05, 0.36);
+    eye2.position.set( 0.18, 2.05, 0.36);
+    enemy.add(body, head, eye1, eye2);
+    enemy.position.set(-10, 0, -10);
+    scene.add(enemy);
+
+    // UI
+    const msg = document.getElementById("msg");
+    const msgText = document.getElementById("msgText");
+    let gameOver = false;
+
+    // Keys
+    const keys = { w:false, a:false, s:false, d:false, shift:false };
+    addEventListener("keydown", (e)=>{
+      const k = e.key.toLowerCase();
+      if(k in keys) keys[k] = true;
+      if(e.key === "Shift") keys.shift = true;
+
+      if(k === "f"){
+        flashlightOn = !flashlightOn;
+        flashlight.intensity = flashlightOn ? 2.2 : 0;
+      }
+    });
+    addEventListener("keyup", (e)=>{
+      const k = e.key.toLowerCase();
+      if(k in keys) keys[k] = false;
+      if(e.key === "Shift") keys.shift = false;
+    });
+
+    // Collision helpers
+    function clampPlayer(){
+      const p = controls.getObject().position;
+      p.x = Math.max(-13.5, Math.min(13.5, p.x));
+      p.z = Math.max(-13.5, Math.min(13.5, p.z));
+    }
+
+    function collidesWithObstacles(newPos){
+      const playerBox = new THREE.Box3().setFromCenterAndSize(
+        new THREE.Vector3(newPos.x, 1.6, newPos.z),
+        new THREE.Vector3(0.6, 1.7, 0.6)
+      );
+      for(const o of obstacles){
+        const oBox = new THREE.Box3().setFromObject(o);
+        if(playerBox.intersectsBox(oBox)) return true;
+      }
+      return false;
+    }
+
+    // ---------------- Namaz Reminder ----------------
+    const prayerBox = document.getElementById("prayerBox");
+    const prTitle = document.getElementById("prTitle");
+    const prText = document.getElementById("prText");
+    const prOk = document.getElementById("prOk");
+    const saveTimes = document.getElementById("saveTimes");
+    let prayerPaused = false;
+
+    const defaultTimes = { Fajr:"05:30", Zuhr:"13:15", Asr:"16:45", Mag:"18:05", Isha:"19:30" };
+
+    function loadTimes(){
+      const t = JSON.parse(localStorage.getItem("prayerTimes") || "null") || defaultTimes;
+      tFajr.value = t.Fajr; tZuhr.value = t.Zuhr; tAsr.value = t.Asr; tMag.value = t.Mag; tIsha.value = t.Isha;
+    }
+    function getTimes(){
+      return { Fajr:tFajr.value, Zuhr:tZuhr.value, Asr:tAsr.value, Mag:tMag.value, Isha:tIsha.value };
+    }
+    loadTimes();
+
+    saveTimes.onclick = ()=>{
+      localStorage.setItem("prayerTimes", JSON.stringify(getTimes()));
+      prText.innerHTML = "✅ Times saved. Allah tumhe kamyab kare. 🤍";
+    };
+
+    function showPrayer(name){
+      prayerPaused = true;
+      prTitle.innerText = `🕌 ${name} Time`;
+      prText.innerHTML = `Namaz ka waqt ho gaya hai.<br><b>Game PAUSE</b> ✅`;
+      prayerBox.style.display = "flex";
+      try{ controls.unlock(); }catch(e){}
+    }
+    prOk.onclick = ()=>{
+      prayerPaused = false;
+      prayerBox.style.display = "none";
+    };
+
+    // N = open settings
+    addEventListener("keydown", (e)=>{
+      if(e.key.toLowerCase()==="n"){
+        prayerBox.style.display = "flex";
+        try{ controls.unlock(); }catch(err){}
+      }
+    });
+
+    let firedToday = {};
+    function dayKey(){
+      const d = new Date();
+      return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+    }
+    let curDay = dayKey();
+    function resetDaily(){
+      const d = dayKey();
+      if(d !== curDay){ curDay = d; firedToday = {}; }
+    }
+
+    function tickPrayer(){
+      resetDaily();
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2,"0");
+      const mm = String(now.getMinutes()).padStart(2,"0");
+      const cur = `${hh}:${mm}`;
+
+      const times = JSON.parse(localStorage.getItem("prayerTimes") || "null") || getTimes();
+      const list = [["Fajr",times.Fajr],["Zuhr",times.Zuhr],["Asr",times.Asr],["Maghrib",times.Mag],["Isha",times.Isha]];
+      for(const [name, t] of list){
+        if(cur === t && !firedToday[name]){
+          firedToday[name] = true;
+          showPrayer(name);
+          break;
+        }
+      }
+    }
+    setInterval(tickPrayer, 1000 * 10);
+
+    // ---------------- Loop ----------------
+    const clock = new THREE.Clock();
+
+    function animate(){
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+
+      if(!gameOver && controls.isLocked && !prayerPaused){
+        const speed = (keys.shift ? 5.2 : 3.2);
+
+        const dir = new THREE.Vector3();
+        const forward = new THREE.Vector3();
+        controls.getDirection(forward); forward.y = 0; forward.normalize();
+        const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize().multiplyScalar(-1);
+
+        if(keys.w) dir.add(forward);
+        if(keys.s) dir.sub(forward);
+        if(keys.a) dir.sub(right);
+        if(keys.d) dir.add(right);
+
+        if(dir.lengthSq() > 0) dir.normalize().multiplyScalar(speed * dt);
+
+        const cur = controls.getObject().position.clone();
+        const next = cur.clone().add(dir);
+        if(!collidesWithObstacles(next)) controls.getObject().position.copy(next);
+
+        clampPlayer();
+
+        // enemy chase
+        const playerPos = controls.getObject().position;
+        const toPlayer = new THREE.Vector3().subVectors(playerPos, enemy.position);
+        const dist = toPlayer.length();
+
+        const enemySpeed = flashlightOn ? 1.2 : 2.2;
+        toPlayer.y = 0;
+        if(dist > 0.01){
+          toPlayer.normalize();
+          enemy.position.add(toPlayer.multiplyScalar(enemySpeed * dt));
+        }
+        enemy.lookAt(playerPos.x, enemy.position.y + 1.2, playerPos.z);
+
+        if(dist < 1.2){
+          gameOver = true;
+          msgText.innerHTML = "💀 THE HAUNTED ONE CAUGHT YOU!<br/>Jumpscare!";
+          msg.style.display = "flex";
+          try{ controls.unlock(); }catch(e){}
+        }
+
+        if(door.position.distanceTo(playerPos) < 1.6){
+          gameOver = true;
+          msgText.innerHTML = "✅ YOU ESCAPED!<br/>Something is still behind you...";
+          msg.style.display = "flex";
+          try{ controls.unlock(); }catch(e){}
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    addEventListener("resize", ()=>{
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
