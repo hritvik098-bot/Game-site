@@ -408,10 +408,15 @@
 (()=> {
   const isTouch=('ontouchstart'in window)||(navigator.maxTouchPoints>0);
   if(!isTouch) return;
-
+setInterval(()=>{
+  const k = window.__keys;
+  if(!k) return;
+  msgText.innerHTML = `W:${k.w} A:${k.a} S:${k.s} D:${k.d} SHIFT:${k.shift}`;
+},200);
   // ✅ DIRECT CONTROL (No KeyboardEvent)
 const kd=(code)=>{
   const k = window.__keys;
+  
   if(!k) return;
 
   if(code==='KeyW') k.w = true;
