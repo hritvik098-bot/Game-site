@@ -409,12 +409,34 @@
   const isTouch=('ontouchstart'in window)||(navigator.maxTouchPoints>0);
   if(!isTouch) return;
 
-  const down=new Set();
-  const kd=(code)=>{if(down.has(code))return;down.add(code);
-    document.dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}))}
-  const ku=(code)=>{if(!down.has(code))return;down.delete(code);
-    document.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}))}
+  // ✅ DIRECT CONTROL (No KeyboardEvent)
+const kd=(code)=>{
+  const k = window.__keys;
+  if(!k) return;
 
+  if(code==='KeyW') k.w = true;
+  if(code==='KeyA') k.a = true;
+  if(code==='KeyS') k.s = true;
+  if(code==='KeyD') k.d = true;
+
+  if(code==='ShiftLeft') k.shift = true;
+  if(code==='Space') k[' '] = true;
+  if(code==='KeyF') k.f = true;
+};
+
+const ku=(code)=>{
+  const k = window.__keys;
+  if(!k) return;
+
+  if(code==='KeyW') k.w = false;
+  if(code==='KeyA') k.a = false;
+  if(code==='KeyS') k.s = false;
+  if(code==='KeyD') k.d = false;
+
+  if(code==='ShiftLeft') k.shift = false;
+  if(code==='Space') k[' '] = false;
+  if(code==='KeyF') k.f = false;
+};
   // joystick => WASD
   const joy=document.getElementById('joy'), knob=document.getElementById('knob');
   let active=false,cx=0,cy=0;
