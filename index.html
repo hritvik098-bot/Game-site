@@ -378,6 +378,88 @@
       camera.updateProjectionMatrix();
       renderer.setSize(innerWidth, innerHeight);
     });
-  </script>
+  </script><!-- ✅ MOBILE TOUCH CONTROLS -->
+<style>
+  #touchUI{position:fixed;inset:0;z-index:999999;pointer-events:none;font-family:Arial}
+  #joy{position:absolute;left:16px;bottom:18px;width:160px;height:160px;border-radius:50%;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);pointer-events:auto;touch-action:none}
+  #knob{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;
+    background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.22)}
+  #btns{position:absolute;right:16px;bottom:20px;display:flex;flex-direction:column;gap:10px;pointer-events:auto}
+  .btn{width:64px;height:64px;border-radius:18px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);
+    color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none}
+  #look{position:absolute;right:16px;bottom:220px;width:190px;height:190px;border-radius:50%;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);pointer-events:auto;touch-action:none}
+  @media (hover:hover) and (pointer:fine){#touchUI{display:none}}
+</style>
+
+<div id="touchUI">
+  <div id="joy"><div id="knob"></div></div>
+  <div id="look"></div>
+
+  <div id="btns">
+    <div class="btn" id="btnF">F</div>
+    <div class="btn" id="btnJump">⤒</div>
+    <div class="btn" id="btnRun">RUN</div>
+  </div>
+</div>
+
+<script>
+(()=> {
+  const isTouch=('ontouchstart'in window)||(navigator.maxTouchPoints>0);
+  if(!isTouch) return;
+
+  const down=new Set();
+  const kd=(code)=>{if(down.has(code))return;down.add(code);
+    document.dispatchEvent(new KeyboardEvent('keydown',{code,bubbles:true}))}
+  const ku=(code)=>{if(!down.has(code))return;down.delete(code);
+    document.dispatchEvent(new KeyboardEvent('keyup',{code,bubbles:true}))}
+
+  // joystick => WASD
+  const joy=document.getElementById('joy'), knob=document.getElementById('knob');
+  let active=false,cx=0,cy=0;
+  const set=(dx,dy)=>{
+    const max=45,len=Math.hypot(dx,dy)||1,cl=Math.min(len,max);
+    const nx=dx/len*cl, ny=dy/len*cl;
+    knob.style.transform=`translate(${nx}px,${ny}px)`;
+    const dead=14;
+    (nx<-dead)?kd('KeyA'):ku('KeyA');
+    (nx> dead)?kd('KeyD'):ku('KeyD');
+    (ny<-dead)?kd('KeyW'):ku('KeyW');
+    (ny> dead)?kd('KeyS'):ku('KeyS');
+  }
+  joy.addEventListener('pointerdown',e=>{
+    active=true;joy.setPointerCapture(e.pointerId);
+    const r=joy.getBoundingClientRect();cx=r.left+r.width/2;cy=r.top+r.height/2;
+    set(e.clientX-cx,e.clientY-cy);
+  });
+  joy.addEventListener('pointermove',e=>{if(active)set(e.clientX-cx,e.clientY-cy)});
+  joy.addEventListener('pointerup',()=>{active=false;knob.style.transform='translate(0,0)';
+    ['KeyW','KeyA','KeyS','KeyD'].forEach(ku)});
+
+  // look pad => mouse move
+  const look=document.getElementById('look');
+  let lx=0,ly=0,looking=false;
+  look.addEventListener('pointerdown',e=>{looking=true;look.setPointerCapture(e.pointerId);lx=e.clientX;ly=e.clientY});
+  look.addEventListener('pointermove',e=>{
+    if(!looking) return;
+    const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
+    document.dispatchEvent(new MouseEvent('mousemove',{movementX:dx,movementY:dy,bubbles:true}));
+  });
+  look.addEventListener('pointerup',()=>looking=false);
+
+  // buttons
+  const bind=(id,code)=>{
+    const el=document.getElementById(id);
+    el.addEventListener('pointerdown',e=>{e.preventDefault();kd(code)});
+    el.addEventListener('pointerup',e=>{e.preventDefault();ku(code)});
+    el.addEventListener('pointercancel',e=>{e.preventDefault();ku(code)});
+  }
+  bind('btnRun','ShiftLeft');
+  bind('btnJump','Space');
+  bind('btnF','KeyF');
+})();
+</script>
+<!-- ✅ MOBILE TOUCH CONTROLS END -->
 </body>
 </html>
