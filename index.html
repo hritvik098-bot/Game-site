@@ -204,6 +204,7 @@
 
     // Keys
     const keys = { w:false, a:false, s:false, d:false, shift:false };
+    window.__keys = keys;
     addEventListener("keydown", (e)=>{
       const k = e.key.toLowerCase();
       if(k in keys) keys[k] = true;
